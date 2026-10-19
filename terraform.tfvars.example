@@ -1,0 +1,26 @@
+# =============================================================================
+# terraform.tfvars.example - Plantilla de variables para el Frontend en Azure VM
+# Copia este archivo como 'terraform.tfvars' y completa tus valores sensibles.
+# NUNCA subas 'terraform.tfvars' con credenciales reales a GitHub.
+# =============================================================================
+
+project_name = "asistencia"
+environment  = "dev"
+location     = "swedencentral"
+
+# Standard_B2as_v2 = 2 vCPU / 2 GB RAM (disponible en Azure Free Trial)
+vm_size = "Standard_B2as_v2"
+
+# Credenciales de acceso SSH a la VM
+admin_username = "azureuser"
+admin_password = "TuPasswordSeguro123!"  # Minimo 12 caracteres, mayusculas, numeros y simbolos
+
+# Version LTS de Node.js (usada para compilar Vite en la VM)
+node_version = "20"
+
+# URL base del Backend API en ejecucion (apunta a la VM del backend en puerto 3000)
+# Ejemplo: "http://51.12.93.59:3000/api/v1/"
+vite_api_url = "http://<IP_O_FQDN_DEL_BACKEND>:3000/api/v1/"
+
+# Repositorio Git de la aplicacion frontend React+Vite (opcional)
+repo_url = "https://github.com/Joandrr/asistencia-front.git"

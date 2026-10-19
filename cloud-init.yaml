@@ -1,0 +1,221 @@
+#cloud-config
+# =============================================================================
+# CLOUD-INIT para asistencia-front (React + Vite + Nginx)
+# Este script se ejecuta AUTOMATICAMENTE la primera vez que la VM arranca.
+# Azure lo inyecta en la VM antes de que el usuario pueda conectarse.
+# =============================================================================
+
+package_update: true
+package_upgrade: false
+
+# Paquetes del sistema que se instalan primero
+packages:
+  - git
+  - curl
+  - wget
+  - unzip
+  - build-essential
+  - nginx
+
+write_files:
+  # ---------------------------------------------------------------------------
+  # Configuracion Nginx para SPA (React / TanStack Router / Vite)
+  # Redirige todas las rutas a /index.html para permitir el enrutamiento del lado del cliente
+  # ---------------------------------------------------------------------------
+  - path: /etc/nginx/sites-available/asistencia-front
+    permissions: '0644'
+    content: |
+      server {
+          listen 80 default_server;
+          listen [::]:80 default_server;
+
+          root /var/www/asistencia-front/dist;
+          index index.html;
+
+          server_name _;
+
+          # Soporte para SPA (Single Page Application): react-router / tanstack-router
+          location / {
+              try_files $uri $uri/ /index.html;
+          }
+
+          # Cache optimizada para assets generados por Vite (js, css, fuentes, imagenes)
+          location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+              expires 1y;
+              add_header Cache-Control "public, immutable";
+              try_files $uri =404;
+          }
+
+          # Compresion Gzip para alto rendimiento en red
+          gzip on;
+          gzip_vary on;
+          gzip_min_length 1024;
+          gzip_proxied expired no-cache no-store private auth;
+          gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml application/javascript application/json image/svg+xml;
+          gzip_disable "MSIE [1-6]\.";
+      }
+
+  # ---------------------------------------------------------------------------
+  # Permiso sudo sin contrasena para recargar/reiniciar Nginx
+  # ---------------------------------------------------------------------------
+  - path: /etc/sudoers.d/admin-nginx
+    permissions: '0440'
+    content: |
+      ${admin_username} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx, /usr/bin/systemctl restart nginx
+
+runcmd:
+  # ---------------------------------------------------------------------------
+  # PASO 1: Habilitar 1GB Swap para asegurar compilacion fluida de Vite/TypeScript
+  # ---------------------------------------------------------------------------
+  - |
+    if [ ! -f /swapfile ]; then
+      fallocate -l 1G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=1024
+      chmod 600 /swapfile
+      mkswap /swapfile
+      swapon /swapfile
+      echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    fi
+
+  # ---------------------------------------------------------------------------
+  # PASO 2: Instalar Node.js ${node_version} LTS via NodeSource
+  # ---------------------------------------------------------------------------
+  - curl -fsSL https://deb.nodesource.com/setup_${node_version}.x | bash -
+  - apt-get install -y nodejs
+  - node --version
+  - npm --version
+
+  # ---------------------------------------------------------------------------
+  # PASO 3: Preparar directorio para la app y permisos para el usuario
+  # ---------------------------------------------------------------------------
+  - mkdir -p /var/www/asistencia-front/dist
+  - chown -R ${admin_username}:${admin_username} /var/www/asistencia-front
+  - chown ${admin_username}:${admin_username} /home/${admin_username}
+
+  # ---------------------------------------------------------------------------
+  # PASO 4: Crear script ~/deploy.sh para el usuario
+  # ---------------------------------------------------------------------------
+  - |
+    cat << 'DEPLOY_EOF' > /home/${admin_username}/deploy.sh
+    #!/bin/bash
+    set -e
+    echo "======================================================"
+    echo "  Iniciando compilacion y despliegue de asistencia-front"
+    echo "======================================================"
+
+    cd /var/www/asistencia-front
+
+    if [ -d .git ]; then
+      echo "[1/4] Actualizando codigo desde repositorio Git..."
+      git pull origin main || git pull
+    fi
+
+    if [ ! -f package.json ]; then
+      echo "Error: package.json no encontrado en /var/www/asistencia-front"
+      exit 1
+    fi
+
+    echo "[2/4] Instalando dependencias..."
+    npm install
+
+    echo "[3/4] Compilando con Vite..."
+    npm run build
+
+    echo "[4/4] Recargando servidor web Nginx..."
+    sudo systemctl reload nginx
+
+    echo "======================================================"
+    echo "  Despliegue finalizado con exito!"
+    echo "======================================================"
+    DEPLOY_EOF
+    chmod 755 /home/${admin_username}/deploy.sh
+    chown ${admin_username}:${admin_username} /home/${admin_username}/deploy.sh
+
+  # ---------------------------------------------------------------------------
+  # PASO 5: Pagina temporal de espera (mientras se sube el codigo del frontend)
+  # ---------------------------------------------------------------------------
+  - |
+    cat > /var/www/asistencia-front/dist/index.html << 'HTMLEOF'
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Sistema de Asistencia - Frontend</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 1rem; padding: 2.5rem; max-width: 540px; width: 100%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); text-align: center; }
+        .icon { width: 56px; height: 56px; background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; color: #38bdf8; font-size: 1.75rem; }
+        h1 { font-size: 1.6rem; color: #f1f5f9; margin-bottom: 0.75rem; font-weight: 700; }
+        p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.25rem; }
+        .badge { display: inline-block; background: #0284c7; color: #f0f9ff; font-size: 0.8rem; font-weight: 600; padding: 0.35rem 0.85rem; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1.5rem; }
+        .box { background: #0f172a; border-radius: 0.5rem; padding: 1rem; text-align: left; font-family: monospace; font-size: 0.85rem; color: #a5f3fc; border: 1px solid #334155; overflow-x: auto; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="icon">&#x2699;</div>
+        <span class="badge">Servidor Nginx Activo</span>
+        <h1>Servidor Frontend Inicializado</h1>
+        <p>La infraestructura en Azure está lista. Sube el código fuente de <strong>asistencia-front</strong> y ejecuta el script de compilación para ver la aplicación web.</p>
+        <div class="box">
+          # En tu terminal local:<br/>
+          scp -r ../../../../../asistencia-front/. ${admin_username}@&lt;IP&gt;:/var/www/asistencia-front/<br/><br/>
+          # Luego conéctate y despliega:<br/>
+          ssh ${admin_username}@&lt;IP&gt;<br/>
+          ./deploy.sh
+        </div>
+      </div>
+    </body>
+    </html>
+    HTMLEOF
+  - chown -R ${admin_username}:${admin_username} /var/www/asistencia-front/dist/index.html
+
+  # ---------------------------------------------------------------------------
+  # PASO 6: Activar configuracion de Nginx y reiniciar servicio
+  # ---------------------------------------------------------------------------
+  - rm -f /etc/nginx/sites-enabled/default
+  - ln -sf /etc/nginx/sites-available/asistencia-front /etc/nginx/sites-enabled/
+  - nginx -t
+  - systemctl restart nginx
+  - systemctl enable nginx
+
+  # ---------------------------------------------------------------------------
+  # PASO 7: Clonar repositorio Git si se especifico repo_url
+  # ---------------------------------------------------------------------------
+  - |
+    if [ -n "${repo_url}" ]; then
+      if [ ! -d /var/www/asistencia-front/.git ]; then
+        git clone "${repo_url}" /tmp/frontend-repo
+        cp -a /tmp/frontend-repo/. /var/www/asistencia-front/
+        rm -rf /tmp/frontend-repo
+      fi
+      chown -R ${admin_username}:${admin_username} /var/www/asistencia-front
+    else
+      echo "No se especifico repo_url. El codigo se subira manualmente a /var/www/asistencia-front"
+    fi
+
+  # ---------------------------------------------------------------------------
+  # PASO 8: Generar archivo .env con la URL del Backend
+  # ---------------------------------------------------------------------------
+  - |
+    cat > /var/www/asistencia-front/.env << 'ENVEOF'
+    VITE_API_URL=${vite_api_url}
+    ENVEOF
+  - chown ${admin_username}:${admin_username} /var/www/asistencia-front/.env
+
+  # ---------------------------------------------------------------------------
+  # PASO 9: Si el codigo ya esta presente (via git clone), instalar dependencias y compilar
+  # ---------------------------------------------------------------------------
+  - |
+    if [ -f /var/www/asistencia-front/package.json ]; then
+      cd /var/www/asistencia-front
+      npm install
+      npm run build
+      systemctl reload nginx
+    fi
+
+  # ---------------------------------------------------------------------------
+  # PASO 10: Registrar log de finalizacion
+  # ---------------------------------------------------------------------------
+  - 'echo "Cloud-init Frontend completado: $(date)" >> /var/log/asistencia-front-setup.log'
