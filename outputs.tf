@@ -39,8 +39,8 @@ output "ssh_connection_command" {
 }
 
 output "upload_command" {
-  description = "Comando sugerido para subir el codigo del frontend a la VM"
-  value       = "scp -r ../../../../../asistencia-front/. ${var.admin_username}@${azurerm_public_ip.pip.ip_address}:/var/www/asistencia-front/"
+  description = "Comando sugerido para subir el codigo del frontend a la VM (excluye node_modules para transferir en 2 segundos)"
+  value       = "tar --exclude='node_modules' --exclude='.git' --exclude='dist' -czf frontend.tar.gz -C ../../../../../asistencia-front . && scp frontend.tar.gz ${var.admin_username}@${azurerm_public_ip.pip.ip_address}:/tmp/ && ssh ${var.admin_username}@${azurerm_public_ip.pip.ip_address} 'tar -xzf /tmp/frontend.tar.gz -C /var/www/asistencia-front && rm /tmp/frontend.tar.gz' && rm frontend.tar.gz"
 }
 
 output "deploy_command" {
