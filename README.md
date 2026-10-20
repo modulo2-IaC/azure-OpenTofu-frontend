@@ -111,11 +111,11 @@ Si definiste `repo_url`:
 ssh azureuser@<IP-PUBLICA> '~/deploy.sh'
 ```
 
-### Opción B: Subida Directa Ultra-Rápida (Comprimir sin node_modules)
-> ⚠️ **IMPORTANTE**: Nunca uses `scp -r` directo sobre la carpeta del proyecto porque subirá 50,000+ archivos de `node_modules` (tarda 45 min). Con este comando, se empaqueta solo el código fuente (pesa ~320 KB), sube en **1 segundo** y compila en la VM:
+### Opción B: Subida Directa Ultra-Rápida (Comprimir sin node_modules ni .env)
+> ⚠️ **IMPORTANTE**: Nunca uses `scp -r` directo sobre la carpeta del proyecto porque subirá 50,000+ archivos de `node_modules` (tarda 45 min) y sobreescribiría las variables de entorno del servidor. Con este comando, se empaqueta solo el código fuente (pesa ~320 KB), sube en **1 segundo** y compila en la VM:
 
 ```bash
-tar --exclude='node_modules' --exclude='.git' --exclude='dist' -czf frontend.tar.gz -C ../../../../../asistencia-front . && \
+tar --exclude='node_modules' --exclude='.git' --exclude='dist' --exclude='.env*' -czf frontend.tar.gz -C ../../../../../asistencia-front . && \
 scp frontend.tar.gz azureuser@<IP-PUBLICA>:/tmp/ && \
 ssh azureuser@<IP-PUBLICA> 'tar -xzf /tmp/frontend.tar.gz -C /var/www/asistencia-front && rm /tmp/frontend.tar.gz && ~/deploy.sh' && \
 rm frontend.tar.gz
