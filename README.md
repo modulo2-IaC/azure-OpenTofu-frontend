@@ -11,7 +11,7 @@ graph TD
     User[Navegador / Usuario Final] -->|HTTP :80 / HTTPS :443| PIP[Azure Public IP Estática]
     PIP --> NSG[Network Security Group<br/>Puertos 22, 80, 443]
     NSG --> NIC[Network Interface]
-    NIC --> VM[Azure Linux VM<br/>Standard_B2as_v2<br/>Ubuntu 22.04 LTS]
+    NIC --> VM[Azure Linux VM<br/>Standard_B2s_v2<br/>Ubuntu 22.04 LTS]
     subgraph VM_Internal [Servicios en VM]
         Nginx[Servidor Web Nginx<br/>Reverse Proxy + SPA Router + Gzip]
         StaticFiles[Static Build /var/www/asistencia-front/dist]
@@ -27,7 +27,7 @@ graph TD
 - **Red Virtual (VNet)**: `10.1.0.0/16` con subred dedicada `subnet-frontend` (`10.1.1.0/24`).
 - **IP Pública Estática**: SKU Standard con nombre DNS FQDN asignado.
 - **Network Security Group (NSG)**: Firewall perimetral permitiendo SSH (puerto 22), HTTP (puerto 80) y HTTPS (puerto 443).
-- **Máquina Virtual Linux**: `Standard_B2as_v2` (2 vCPU, 2 GB RAM, serie B con ráfagas, 100% elegible para Azure Free Trial).
+- **Máquina Virtual Linux**: `Standard_B2s_v2` (2 vCPU, 4 GB RAM, serie B con ráfagas, 100% elegible para Azure Free Trial).
 - **Disco OS**: 30 GB Standard HDD (optimizado para plan gratuito).
 - **Cloud-Init Automatizado**:
   - Configuración de 1 GB de Swap para compilación fluida de TypeScript y Vite.
